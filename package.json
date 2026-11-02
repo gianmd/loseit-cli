@@ -1,0 +1,40 @@
+{
+  "name": "loseit-cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agent-friendly CLI for Lose It! (diary, foods, recipes, calorie budgets) over the web app's GWT-RPC API.",
+  "license": "MIT",
+  "bin": {
+    "loseit": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.json && chmod +x dist/cli.js",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "tsx --test 'src/**/*.test.ts'"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "commander": "14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "tsx": "4.21.0",
+    "typescript": "6.0.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gianmd/loseit-cli.git"
+  },
+  "keywords": [
+    "loseit",
+    "calories",
+    "cli",
+    "gwt-rpc",
+    "llm",
+    "agents"
+  ]
+}
