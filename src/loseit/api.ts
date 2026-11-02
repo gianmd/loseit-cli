@@ -273,7 +273,10 @@ export class LoseIt {
    */
   private async rawFood(id: string): Promise<GObj | null> {
     const res = await this.rpc("getFood", [makePk(id), LOCALE]);
-    if (res instanceof GObj) return res;
+    if (res instanceof GObj) {
+      await this.ensureFoodName(obj(res.f[0] ?? null));
+      return res;
+    }
     // getFood doesn't resolve freshly created custom foods; fall back to the list.
     const custom = items(await this.rpc("getCustomFoods")).find(
       (cf) => pkHex(cf.f[12] ?? null) === id.toLowerCase(),
@@ -285,6 +288,24 @@ export class LoseIt {
       serving.f[0] ?? null,
       new GObj("FoodServingSize[]", [[serving.f[1] ?? null]]),
     ]);
+  }
+
+  /**
+   * Some database records have lost their name (FoodIdentifier name = null) while
+   * the diary and search index still show it. The server rejects entries without a
+   * name ("Non rollback error"), so recover it from the most recent diary entry.
+   */
+  private async ensureFoodName(ident: GObj, override?: string): Promise<void> {
+    if (override) {
+      ident.f[3] = override;
+      return;
+    }
+    if (str(ident.f[3] ?? null)) return;
+    const id = pkHex(ident.f[9] ?? null);
+    const to = this.date();
+    const past = await this.entriesBetween(addDays(to, -364), to);
+    const name = past.reverse().find((e) => e.food.id === id && e.food.name)?.food.name;
+    if (name) ident.f[3] = name;
   }
 
   async food(id: string) {
@@ -328,15 +349,26 @@ export class LoseIt {
     };
   }
 
-  async logFood(opts: { foodId: string; meal: number; date?: string | undefined } & Amount): Promise<EntryView> {
+  async logFood(
+    opts: { foodId: string; meal: number; date?: string | undefined; name?: string | undefined } & Amount,
+  ): Promise<EntryView> {
     const vocab = await this.vocab();
     const date = this.date(opts.date);
     const raw = await this.rawFood(opts.foodId);
-    const name = raw ? (str(obj(raw.f[0] ?? null).f[3] ?? null) ?? "") : await this.recipeName(opts.foodId);
+    const name =
+      opts.name ??
+      (raw ? (str(obj(raw.f[0] ?? null).f[3] ?? null) ?? "") : await this.recipeName(opts.foodId));
+    if (!name) {
+      throw new LoseItError(
+        `food ${opts.foodId} has no name in Lose It's database and none was found in your diary; pass --name`,
+        "unnamed_food",
+      );
+    }
     const entry = obj(
       await this.rpc("getUnsavedFoodLogEntry", [makePk(opts.foodId), LOCALE, name]),
       "FoodLogEntry",
     );
+    await this.ensureFoodName(obj(entry.f[0] ?? null), name);
     const serving = obj(entry.f[2] ?? null);
     const unsavedSize = obj(serving.f[1] ?? null);
     const options = raw ? servingOptions(vocab, items(raw.f[2] ?? null)) : servingOptions(vocab, [unsavedSize]);

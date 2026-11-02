@@ -98,6 +98,9 @@ a refresh automatically.
 - History comes from `getDailyDetailsIncludingPendingForDateRange(userId, from, to)`, which returns
   full diary days for a whole range in one call (~1 s for 90 days). `getMyFoodsSearchResults` has no
   recency data (it is an alphabetical list), so it can't be used for this.
+- Some database records have lost their name (`FoodIdentifier.name = null`) even though search and
+  your diary still show it, and the server rejects entries without one ("Non rollback error"). The CLI
+  recovers the name from your diary (last 365 days); `log add --name` covers anything else.
 - Freshly created custom foods aren't returned by `getFood`, so the CLI falls back to your
   custom-food list.
 

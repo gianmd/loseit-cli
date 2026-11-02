@@ -201,10 +201,11 @@ amountOptions(
     .description("log a food or recipe by id (from `food search` / `recipe list`)")
     .argument("<foodId>")
     .addOption(mealOption())
-    .addOption(dateOption()),
+    .addOption(dateOption())
+    .option("--name <name>", "food name to record, for database foods whose name is missing"),
 ).action(
-  run(async (foodId: string, o: { meal: string; date: string } & Amount) =>
-    api.logFood({ foodId, meal: parseMeal(o.meal), date: o.date, ...amountFrom(o) }),
+  run(async (foodId: string, o: { meal: string; date: string; name?: string } & Amount) =>
+    api.logFood({ foodId, meal: parseMeal(o.meal), date: o.date, name: o.name, ...amountFrom(o) }),
   ),
 );
 amountOptions(

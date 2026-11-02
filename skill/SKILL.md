@@ -64,4 +64,6 @@ Entry ids come from `loseit day`. Moving to another date returns a new entry id.
 - Confirm with the user before deleting entries, foods or recipes.
 - When the user gives a portion ("200 g of chicken"), prefer `-a 200 -u g` over guessing servings.
 - After logging, `loseit day` shows the updated `remaining` to report back.
+- Error `unnamed_food`: that database record has lost its name and it isn't in the diary history — retry with
+  `loseit log add <id> ... --name "<name from food search>"`.
 - Errors with code `missing_credentials` or `login_failed`: ask the user to set `LOSEIT_EMAIL`/`LOSEIT_PASSWORD` in `~/.config/loseit/.env` and run `loseit auth login`.
