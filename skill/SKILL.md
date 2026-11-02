@@ -36,6 +36,16 @@ DATE: `YYYY-MM-DD`, `today`, `yesterday`, or an offset like `-2`.
 Nothing in the database? Create it: `loseit food create --name "…" --calories 250 [--protein 20 --carbs 30 --fat 8 --fiber --sugar --saturated-fat --sodium --cholesterol] [--brand …] [--serving-amount 1 --serving-unit serving]`.
 Add `--log -m <meal> [-d DATE]` to also log one serving immediately.
 
+## Fixing a custom food
+
+- `loseit food edit <id> [--calories N] [--protein N] [--carbs N] [--fat N] [--saturated-fat N] [--fiber N] [--sugar N] [--sodium N] [--cholesterol N] [--name "…"] [--brand "…"]`
+  changes only the fields passed (per serving) and prints the updated `food`.
+- **The id changes** (Lose It recreates the food): use the returned `id` from now on. `entriesWithOldId`
+  lists diary entries (last 90 days) still logged with the old values — if the user wants them corrected,
+  re-log each one: `loseit log delete <entryId> -d <date>` then `loseit log add <newId> -m <meal> -d <date> ...`
+  with the same amount.
+- Error `not_custom`: it's a database food (or a recipe) — make a custom copy with `food create` instead.
+
 ## Re-logging past meals ("same breakfast as 2 days ago")
 
 - `loseit log copy --from <DATE> [-m <meal>] [--to <DATE>] [--to-meal <meal>] [--entry <id> ...]`

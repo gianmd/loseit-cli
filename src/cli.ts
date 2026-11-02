@@ -186,6 +186,28 @@ create.action(
     return api.createFood(spec, o.log ? { meal: parseMeal(o.meal as string), date: o.date as string } : undefined);
   }),
 );
+const edit = food
+  .command("edit")
+  .description(
+    "edit one of your custom foods; only the fields you pass change (nutrients are per serving). Lose It " +
+      "re-keys custom foods on save, so the id changes: the output has the new id and lists diary entries " +
+      "(last 90 days) still using the old one, which must be re-logged",
+  )
+  .argument("<id>")
+  .option("--name <name>", "new food name")
+  .option("--brand <brand>", "new brand or restaurant");
+for (const [, flag, desc] of NUTRIENT_FLAGS) edit.option(flag, desc, number(flag));
+edit.action(
+  run(async (id: string, o: Record<string, unknown>) => {
+    const nutrients: Nutrients = {};
+    for (const [key] of NUTRIENT_FLAGS) if (typeof o[key] === "number") nutrients[key] = o[key] as number;
+    return api.editCustomFood(id, {
+      name: o.name as string | undefined,
+      brand: o.brand as string | undefined,
+      nutrients,
+    });
+  }),
+);
 food
   .command("delete")
   .description("delete one of your custom foods")

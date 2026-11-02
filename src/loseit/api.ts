@@ -27,7 +27,9 @@ import {
   setEntryContext,
   str,
   timestamp,
+  applyCustomFoodEdit,
   type EntryView,
+  type FoodEdit,
   type Nutrients,
   type ServingOption,
 } from "./model.js";
@@ -547,6 +549,82 @@ export class LoseIt {
       perServing: readServing(vocab, obj(cf.f[5] ?? null)),
     }));
     return filterByName(list, query);
+  }
+
+  /**
+   * Edit one of the user's custom foods, changing only the given fields.
+   *
+   * Lose It has no update RPC: saveCustomFood always stores the food under a new
+   * primary key. With the first flag false it replaces the original (old id removed),
+   * with it true it keeps the original and adds a copy. So an edit is a server-side
+   * delete + recreate that keeps every other field (serving, icon, ...) but changes
+   * the id; the result reports the new id and the diary entries still using the old one.
+   */
+  async editCustomFood(id: string, edit: FoodEdit, historyDays = 90) {
+    const vocab = await this.vocab();
+    const key = id.toLowerCase();
+    const before = items(await this.rpc("getCustomFoods"));
+    const food = before.find((cf) => pkHex(cf.f[12] ?? null) === key);
+    if (!food) {
+      if ((await this.recipes()).some((r) => r.id === key)) {
+        throw new LoseItError(`${id} is a recipe, not a custom food; recipes can't be edited with food edit`, "not_custom");
+      }
+      if (await this.rawFood(key)) {
+        throw new LoseItError(
+          `${id} is a Lose It database food, not one of your custom foods. Database foods can't be edited; ` +
+            "create a custom copy with `loseit food create` (see `loseit food show` for its current values) instead",
+          "not_custom",
+        );
+      }
+      throw new LoseItError(`food ${id} not found`, "not_found");
+    }
+    const updated = applyCustomFoodEdit(vocab, food, edit);
+    if (updated.length === 0) throw new LoseItError("nothing to change: pass at least one field", "bad_input");
+    const name = str(obj(food.f[4] ?? null).f[3] ?? null);
+
+    const known = new Set(before.map((cf) => pkHex(cf.f[12] ?? null)));
+    await this.rpc("saveCustomFood", [food, LOCALE, false, false]);
+    const after = items(await this.rpc("getCustomFoods"));
+    const oldKept = after.some((cf) => pkHex(cf.f[12] ?? null) === key);
+    const created = after.filter(
+      (cf) => !known.has(pkHex(cf.f[12] ?? null)) && str(obj(cf.f[4] ?? null).f[3] ?? null) === name,
+    );
+    if (created.length > 1 || (created.length === 0 && !oldKept)) {
+      throw new LoseItError(
+        `saved, but could not identify the edited food (${created.length} new custom foods named "${name}"); ` +
+          `check \`loseit food mine "${name}" --custom\``,
+        "verify_failed",
+      );
+    }
+    const newId = created.length === 1 ? pkHex(created[0]!.f[12] ?? null) : key;
+
+    const shown = await this.food(newId);
+    const perServing = shown.kind === "food" ? shown.nutrientsPerServing : {};
+    const mismatched = Object.entries(edit.nutrients ?? {})
+      .filter(([k, v]) => Math.abs((perServing[k] ?? NaN) - v) > 0.01)
+      .map(([k]) => k);
+    if (mismatched.length > 0) {
+      throw new LoseItError(
+        `saved as ${newId}, but food show does not reflect ${mismatched.join(", ")}`,
+        "verify_failed",
+      );
+    }
+
+    const idChanged = newId !== key;
+    const result = { id: newId, previousId: key, idChanged, updated, food: shown };
+    if (!idChanged) return result;
+    const to = this.date();
+    const stale = (await this.entriesBetween(addDays(to, -(historyDays - 1)), to))
+      .filter((e) => e.food.id === key)
+      .map((e) => ({ id: e.id, date: e.date, meal: e.meal, calories: e.calories }));
+    return {
+      ...result,
+      warning:
+        `The food id changed from ${key} to ${newId}: Lose It can't update a custom food in place, so it ` +
+        `was deleted and recreated with the same name and serving. Diary entries logged with the old id keep ` +
+        `the old nutrients; re-log them with the new id (log delete, then log add ${newId}) to use the edited values.`,
+      entriesWithOldId: stale,
+    };
   }
 
   async deleteCustomFood(id: string) {

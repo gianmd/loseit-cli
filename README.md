@@ -38,6 +38,7 @@ in `~/.config/loseit/` (override the location with `LOSEIT_HOME`).
 | `loseit food show <id>` | Nutrients per serving and the serving units you can log in |
 | `loseit food mine [query] [--custom]` | Your foods (`--custom`: only the ones you created) |
 | `loseit food create --name N --calories C [--protein ...] [--log -m MEAL]` | Create a custom food; `--log` also logs one serving |
+| `loseit food edit <id> [--calories N] [--protein N] ... [--name N] [--brand B]` | Edit a custom food (only the fields passed); **the id changes** — see notes |
 | `loseit food delete <id>` | Delete a custom food |
 | `loseit log add <foodId> -m MEAL [-s N \| -a N -u UNIT] [-d DATE]` | Log a food or recipe |
 | `loseit log edit <entryId> [-d DATE] [-s N \| -a N [-u UNIT]] [-m MEAL] [--move-to DATE]` | Change an entry |
@@ -101,6 +102,12 @@ a refresh automatically.
 - Some database records have lost their name (`FoodIdentifier.name = null`) even though search and
   your diary still show it, and the server rejects entries without one ("Non rollback error"). The CLI
   recovers the name from your diary (last 365 days); `log add --name` covers anything else.
+- Lose It has no "update custom food" RPC. `saveCustomFood` always stores the food under a new primary
+  key: with its first flag `false` it replaces the original, with `true` it adds a copy. `food edit`
+  uses the replace mode (the server deletes and recreates the food, keeping its serving and other
+  fields), then reports the new id (`idChanged`, `previousId`) and the diary entries from the last
+  90 days that still use the old id. Those entries keep the nutrients they were logged with and need
+  re-logging to pick up the edit. Database foods can't be edited; create a custom copy instead.
 - Freshly created custom foods aren't returned by `getFood`, so the CLI falls back to your
   custom-food list.
 

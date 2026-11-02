@@ -184,13 +184,46 @@ export function nutrientMap(vocab: Vocab, nutrients: Nutrients, factor = 1): GOb
   return new GObj(SIG.hashMap, [pairs]);
 }
 
-/** Scale every value of a FoodNutrients map in place. */
-export function scaleNutrientMap(foodNutrients: GObj, factor: number): void {
-  const pairs = obj(foodNutrients.f[2] ?? null).f[0] as [GVal, GVal][];
-  for (const [, v] of pairs) {
-    const d = obj(v);
-    d.f[0] = num(d.f[0] ?? null) * factor;
+export interface FoodEdit {
+  name?: string | undefined;
+  brand?: string | undefined;
+  /** Per-serving values to set; nutrients not listed keep their current value. */
+  nutrients?: Nutrients | undefined;
+}
+
+/**
+ * Apply an edit to a CustomFood in place, touching only the given fields.
+ * Returns the names of the fields that were set.
+ */
+export function applyCustomFoodEdit(vocab: Vocab, food: GObj, edit: FoodEdit, now = Date.now()): string[] {
+  const ident = obj(food.f[4] ?? null, "FoodIdentifier");
+  const nutr = obj(obj(food.f[5] ?? null, "FoodServing").f[0] ?? null, "FoodNutrients");
+  const changed: string[] = [];
+  if (edit.name !== undefined) {
+    ident.f[3] = edit.name;
+    changed.push("name");
   }
+  if (edit.brand !== undefined) {
+    ident.f[4] = edit.brand;
+    changed.push("brand");
+  }
+  // The map holds values for `base`; one serving is qty/base of it.
+  const toStored = (num(nutr.f[0] ?? null) || 1) / (num(nutr.f[1] ?? null) || 1);
+  const pairs = obj(nutr.f[2] ?? null, "nutrient map").f[0] as [GVal, GVal][];
+  for (const [key, value] of Object.entries(edit.nutrients ?? {})) {
+    const ordinal = vocab.nutrientOrdinal(key);
+    // Always a fresh Double: decoded maps can share one instance between equal values.
+    const stored = new GObj(SIG.double, [value * toStored]);
+    const pair = pairs.find(([k]) => num(k) === ordinal);
+    if (pair) pair[1] = stored;
+    else pairs.push([new GObj(SIG.measurement, [ordinal]), stored]);
+    changed.push(key);
+  }
+  if (changed.length > 0) {
+    ident.f[8] = BigInt(now);
+    food.f[11] = BigInt(now);
+  }
+  return changed;
 }
 
 export function round(n: number, digits = 2): number {
