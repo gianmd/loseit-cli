@@ -6,8 +6,7 @@ foods, and create recipes. Every command prints JSON on stdout; errors are JSON 
 with exit code 1. No server to host.
 
 > ⚠️ **Unofficial.** Lose It! has no public API. This talks to the private GWT-RPC API
-> behind the loseit.com web app, so it may violate their Terms of Service and can break
-> if they change it. Only use it with your own account.
+> behind the loseit.com web app. Only use it with your own account.
 
 ## Setup
 
