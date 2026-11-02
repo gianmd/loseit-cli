@@ -110,6 +110,10 @@ export class LoseItClient {
     return this.session ?? (await this.login());
   }
 
+  async userId(): Promise<number> {
+    return (await this.ensureSession()).userId;
+  }
+
   async logout(): Promise<void> {
     this.session = null;
     await this.writeJson("session.json", null);

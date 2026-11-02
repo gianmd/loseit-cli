@@ -124,10 +124,26 @@ program
 const food = program.command("food").description("search, inspect and create foods");
 food
   .command("search")
-  .description("search the Lose It food database (includes your foods and recipes)")
+  .description(
+    "search the Lose It food database; foods you logged recently come first (fromHistory: true)",
+  )
   .argument("<query...>")
   .option("-l, --limit <n>", "max results", number("limit"), 20)
-  .action(run(async (q: string[], o: { limit: number }) => api.searchFoods(q.join(" "), o.limit)));
+  .option("--history-days <n>", "how far back to look for your own foods (0 = database only)", number("history-days"), 90)
+  .action(
+    run(async (q: string[], o: { limit: number; historyDays: number }) =>
+      api.searchFoods(q.join(" "), o.limit, o.historyDays),
+    ),
+  );
+food
+  .command("history")
+  .description(
+    "foods from your diary grouped by food: times logged, last used, usual amount/unit/meal " +
+      "(sorted by last used, then frequency)",
+  )
+  .argument("[query...]")
+  .option("--days <n>", "how many days back to scan", number("days"), 90)
+  .action(run(async (q: string[], o: { days: number }) => api.foodHistory(q.join(" "), o.days)));
 food
   .command("show")
   .description("nutrients per serving and available serving units for a food or recipe id")

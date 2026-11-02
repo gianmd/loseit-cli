@@ -21,12 +21,17 @@ DATE: `YYYY-MM-DD`, `today`, `yesterday`, or an offset like `-2`.
 
 ## Logging food
 
-1. Find the food: `loseit food search <words> [--limit N]` (returns `id`, `name`, `brand`, `kind`: food|recipe, `verified`).
+1. Find the food: `loseit food search <words> [--limit N]` → `id`, `name`, `brand`, `kind` (food|recipe), `fromHistory`.
+   Foods the user logged in the last 90 days come first with `fromHistory: true`, `timesLogged`, `lastUsed`
+   and `usual {amount, unit, servings, calories, meal}` — prefer these over new database variants
+   (e.g. "eggs" → the egg they always log). `--history-days 0` searches the database only.
+   What they usually eat: `loseit food history [words] [--days 90]` (grouped by food, sorted by last used then frequency).
    Your own foods: `loseit food mine [words]`; recipes: `loseit recipe list [words]`.
 2. Check units if you need a specific amount: `loseit food show <id>` → `nutrientsPerServing`, `servingOptions[{unit, perServing, isDefault}]`.
 3. Log it: `loseit log add <id> -m <breakfast|lunch|dinner|snacks> [-d DATE] [-s SERVINGS | -a AMOUNT -u UNIT]`.
    Units: g, ml, oz, cup, tbsp, tsp, each, serving, … (must be one of the food's `servingOptions`).
-   With neither `-s` nor `-a`, one default serving is logged.
+   With neither `-s` nor `-a`, one default serving is logged. If the user gives no amount and the food has
+   a `usual` portion from history, log that (`-a <usual.amount> -u <usual.unit>`).
 
 Nothing in the database? Create it: `loseit food create --name "…" --calories 250 [--protein 20 --carbs 30 --fat 8 --fiber --sugar --saturated-fat --sodium --cholesterol] [--brand …] [--serving-amount 1 --serving-unit serving]`.
 Add `--log -m <meal> [-d DATE]` to also log one serving immediately.

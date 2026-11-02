@@ -33,7 +33,8 @@ in `~/.config/loseit/` (override the location with `LOSEIT_HOME`).
 |---|---|
 | `loseit day [-d DATE]` | Entries by meal, budget, food, exercise, **remaining**, nutrient totals |
 | `loseit summary [-d END] [-n DAYS]` | Per-day budget / food / exercise / remaining plus totals (default: the 7 days ending today) |
-| `loseit food search <query>` | Search the food database (returns ids) |
+| `loseit food search <query> [--history-days 90]` | Search the food database; foods you logged recently come first (`fromHistory: true`) |
+| `loseit food history [query] [--days 90]` | Foods from your diary: times logged, last used, usual amount/unit/meal |
 | `loseit food show <id>` | Nutrients per serving and the serving units you can log in |
 | `loseit food mine [query] [--custom]` | Your foods (`--custom`: only the ones you created) |
 | `loseit food create --name N --calories C [--protein ...] [--log -m MEAL]` | Create a custom food; `--log` also logs one serving |
@@ -94,6 +95,9 @@ a refresh automatically.
   so the moved entry gets a new id.
 - `--servings` on foods measured in Lose It's "Serving" unit (most recipes) means that unit;
   otherwise it is a multiple of the food's default serving.
+- History comes from `getDailyDetailsIncludingPendingForDateRange(userId, from, to)`, which returns
+  full diary days for a whole range in one call (~1 s for 90 days). `getMyFoodsSearchResults` has no
+  recency data (it is an alphabetical list), so it can't be used for this.
 - Freshly created custom foods aren't returned by `getFood`, so the CLI falls back to your
   custom-food list.
 

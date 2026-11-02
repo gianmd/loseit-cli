@@ -177,10 +177,90 @@ export class LoseIt {
 
   // ─── foods ───────────────────────────────────────────────────────────────
 
-  async searchFoods(query: string, limit = 20) {
+  /**
+   * Database search, with foods from the user's recent diary (`historyDays`, 0 = off)
+   * listed first and marked `fromHistory`, ahead of new variants from the database.
+   */
+  async searchFoods(query: string, limit = 20, historyDays = 90) {
     // The server's limit also counts section headers/footers, so over-ask and trim.
-    const res = obj(await this.rpc("searchFoods", [query, LOCALE, Math.max(limit + 10, 20), true, true]));
-    return searchResults(res).slice(0, limit);
+    const [res, history] = await Promise.all([
+      this.rpc("searchFoods", [query, LOCALE, Math.max(limit + 10, 20), true, true]),
+      historyDays > 0 ? this.foodHistory(query, historyDays) : Promise.resolve([]),
+    ]);
+    const seen = new Set(history.map((h) => h.id));
+    const fromHistory = history.map((h) => ({
+      id: h.id,
+      name: h.name,
+      brand: h.brand,
+      kind: h.kind,
+      fromHistory: true,
+      timesLogged: h.timesLogged,
+      lastUsed: h.lastUsed,
+      usual: h.usual,
+    }));
+    const fromDatabase = searchResults(obj(res))
+      .filter((r) => !seen.has(r.id))
+      .map((r) => ({ ...r, fromHistory: false }));
+    return [...fromHistory, ...fromDatabase].slice(0, limit);
+  }
+
+  /** Every food entry logged between two dates (inclusive), oldest first. */
+  private async entriesBetween(from: string, to: string): Promise<EntryView[]> {
+    const vocab = await this.vocab();
+    const userId = new GObj("java.lang.Integer", [await this.client.userId()]);
+    const out: EntryView[] = [];
+    // One call returns full DailyDetails for a whole range; chunk very long spans.
+    for (let start = from; start <= to; start = addDays(start, 120)) {
+      const end = addDays(start, 119) < to ? addDays(start, 119) : to;
+      const days = items(
+        await this.rpc("getDailyDetailsIncludingPendingForDateRange", [
+          userId,
+          this.dayDate(start),
+          this.dayDate(end),
+        ]),
+      );
+      for (const day of days) {
+        for (const entry of items(day.f[5] ?? null)) {
+          const dayDate = obj(obj(entry.f[1] ?? null).f[1] ?? null);
+          out.push(readEntry(vocab, entry, isoFromDayNumber(num(dayDate.f[1] ?? null))));
+        }
+      }
+    }
+    return out.sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Foods from the diary over the last `days` days, grouped by food: how often and how
+   * recently each was logged, plus the usual portion and meal. Sorted by last use,
+   * then frequency.
+   */
+  async foodHistory(query?: string, days = 90) {
+    const to = this.date();
+    const entries = await this.entriesBetween(addDays(to, -(days - 1)), to);
+    const groups = new Map<string, EntryView[]>();
+    for (const e of entries) groups.set(e.food.id, [...(groups.get(e.food.id) ?? []), e]);
+
+    const history = [...groups.values()].map((list) => {
+      const last = list[list.length - 1]!;
+      const portion = mostCommon(list, (e) => `${round(e.amount, 2)} ${e.unit}`);
+      return {
+        id: last.food.id,
+        name: last.food.name,
+        brand: last.food.brand,
+        kind: last.food.category === "Recipe" ? "recipe" : "food",
+        timesLogged: list.length,
+        lastUsed: last.date,
+        usual: {
+          amount: round(portion.amount, 2),
+          unit: portion.unit,
+          servings: round(portion.servings, 2),
+          calories: portion.calories,
+          meal: mostCommon(list, (e) => e.meal).meal,
+        },
+      };
+    });
+    history.sort((a, b) => b.lastUsed.localeCompare(a.lastUsed) || b.timesLogged - a.timesLogged);
+    return filterByName(history, query);
   }
 
   async myFoods(query?: string) {
@@ -592,6 +672,18 @@ function sumNutrients(entries: EntryView[]): Nutrients {
     for (const [k, v] of Object.entries(e.nutrients)) out[k] = round((out[k] ?? 0) + v);
   }
   return out;
+}
+
+/** The most frequent item by `key`; ties go to the most recent (lists are oldest first). */
+function mostCommon<T>(list: T[], key: (item: T) => string): T {
+  const counts = new Map<string, { n: number; latest: T }>();
+  for (const item of list) {
+    const k = key(item);
+    counts.set(k, { n: (counts.get(k)?.n ?? 0) + 1, latest: item });
+  }
+  let best: { n: number; latest: T } | undefined;
+  for (const c of counts.values()) if (!best || c.n >= best.n) best = c;
+  return best!.latest;
 }
 
 const RESULT_KIND: Record<number, string> = { 1: "food", 12: "recipe" };
